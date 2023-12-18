@@ -8,17 +8,18 @@ Created on Sat Dec 16 11:30:03 2023
 
 #%% Importacion de librerias
 import os
-import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
+import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
-from statistics import descriptive_statistics, type_and_missings
+import matplotlib.pyplot as plt
+import seaborn as sns
+from my_statistics import descriptive_statistics, type_and_missings
+from my_processing import features_and_target
 
 #%% Seteo el directorio 
-os.chdir('/Users/juani.alladio/Desktop/Fligoo/datasets')
+os.chdir('/Users/juani.alladio/Desktop/Fligoo/Fligoo/take_home_data_scientist/images')
 
 #%% Part I 
 
@@ -29,10 +30,10 @@ variables and the existence of missing values'''
 
 initial_inspection = type_and_missings(hotels)
 
-print(initial_inspection['Tipos de datos']) 
+print(initial_inspection['data type']) 
 '''There is some variables that are categoric and has object format. We need to
 modify the format, to be able to use them in posterior analysis'''
-print(initial_inspection['Valores faltantes']) 
+print(initial_inspection['missings values']) 
 ''' Country column has 289 missing values. Depending on the importance of this
 column, we could impute these values ​ or remove the rows if the amount of missing
 data is manageable. Since I consider is not relevant in our analysis, we don't 
@@ -426,94 +427,45 @@ number of bookings that include children and those that do not. There are differ
 alternatives to address this inconvenience. In this case, we analyze two 
 possibilities: (1) stratified sampling, (2) class weighting.'''
 
-# Filtrar observaciones con stays_nights_total > 0
+# Filter out observations where the total number of nights stayed is greater than 0
 hotels = hotels[hotels['stays_nights_total'] > 0]
 
-# Definir tus features y target
+# Define your features and target variable
 features = ['lead_time', 'hotel', 'adults', 'stays_in_weekend_nights', 'stays_in_week_nights',
             'stays_nights_total', 'total_cost', 'meal', 'customer_type', 'month']
 target = 'children'
 
-X = hotels[features]
-y = hotels[target]
+# Prepare the feature matrix X and target vector y
+features = ['lead_time', 'hotel', 'adults', 'stays_in_weekend_nights', 'stays_in_week_nights',
+            'stays_nights_total', 'total_cost', 'meal', 'customer_type', 'month']
+target = 'children'
 
-# Codificar variables categóricas usando One-Hot Encoding
-encoder = OneHotEncoder(sparse=False, drop='first')
-X_encoded = encoder.fit_transform(X[['hotel', 'meal', 'customer_type', 'month']])
+X_final, y = features_and_target(hotels, features, target)
 
-# Escalar las características numéricas
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X[['lead_time', 'adults', 'stays_in_weekend_nights',
-                                   'stays_in_week_nights', 'stays_nights_total', 'total_cost']])
-
-# Combinar las características codificadas y escaladas
-X_final = np.concatenate((X_encoded, X_scaled), axis=1)
-
-# Dividir el conjunto de datos en entrenamiento y pruebaa. Stratifico para corregir
-# desbalances
-X_train, X_test, y_train, y_test = train_test_split(X_final, y, test_size=0.2, random_state=42)
-
-# Entrenar un modelo de regresión logística
-model = LogisticRegression(random_state=42, class_weight='balanced')
-model.fit(X_train, y_train)
-
-# Realizar predicciones en el conjunto de prueba
-y_pred = model.predict(X_test)
-
-# Imprimir informe de clasificación
-print(classification_report(y_test, y_pred))
-
-# Calcular la probabilidad de pertenecer a la clase positiva
-y_prob = model.predict_proba(X_test)[:, 1]
-
-# Calcular la curva ROC
-fpr, tpr, thresholds = roc_curve(y_test, y_prob)
-roc_auc = auc(fpr, tpr)
-
-# Graficar la curva ROC
-plt.figure(figsize=(8, 6))
-plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'AUC = {roc_auc:.2f}')
-plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver Operating Characteristic (ROC) -  Class weighting')
-plt.legend(loc='lower right')
-plt.show()
-
-# Dividir el conjunto de datos en entrenamiento y pruebaa. Stratifico para corregir
-# desbalances
+###### (1) #######
+# Split the dataset into training and testing sets, using stratification to correct for imbalances
 X_train2, X_test2, y_train2, y_test2 = train_test_split(X_final, y, test_size=0.2, random_state=42, stratify=y)
 
-# Entrenar un modelo de regresión logística
+# Train a logistic regression model
 model2 = LogisticRegression(random_state=42)
 model2.fit(X_train2, y_train2)
 
-# Realizar predicciones en el conjunto de prueba
+# Make predictions on the testing set
 y_pred2 = model2.predict(X_test2)
 
-# Imprimir informe de clasificación
-print(classification_report(y_test2, y_pred2))
+# Print the classification report
+print('Stratification\n', classification_report(y_test2, y_pred2))
 
-# Calcular la probabilidad de pertenecer a la clase positiva
-y_prob2 = model2.predict_proba(X_test2)[:, 1]
+###### (2) #######
+X_train, X_test, y_train, y_test = train_test_split(X_final, y, test_size=0.2, random_state=42)
 
-# Calcular la curva ROC
-fpr2, tpr2, thresholds2 = roc_curve(y_test2, y_prob2)
-roc_auc2 = auc(fpr2, tpr2)
+model = LogisticRegression(random_state=42, class_weight='balanced')
+model.fit(X_train, y_train)
 
-# Graficar la curva ROC
-plt.figure(figsize=(8, 6))
-plt.plot(fpr2, tpr2, color='darkorange', lw=2, label=f'AUC = {roc_auc:.2f}')
-plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver Operating Characteristic (ROC) - Stratified sampling')
-plt.legend(loc='lower right')
-plt.show()
+y_pred = model.predict(X_test)
+
+print('Class weighting\n', classification_report(y_test, y_pred))
+
 
 '''The choice of the best model depends on our goals and the relative importance
  of precision, recall, and F1-score for our specific problem. Here is an analysis
